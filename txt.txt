@@ -1,0 +1,537 @@
+ob_start()
+import requests
+import json
+import os
+import sqlite3
+
+API_KEY = '5671901662:xxxxxx'
+admin = ['id', 'id']
+bot = requests.get(f'https://api.telegram.org/bot{API_KEY}/getme').json()['result']['username']
+
+conn = sqlite3.connect('database.db')
+cursor = conn.cursor()
+
+cursor.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, lang TEXT)')
+cursor.execute('CREATE TABLE IF NOT EXISTS groups (id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id TEXT)')
+
+def bot(method, datas={}):
+    url = f'https://api.telegram.org/bot{API_KEY}/{method}'
+    res = requests.post(url, data=datas)
+    return res.json()
+
+update = json.loads(requests.get('php://input').text)
+message = update['message']
+cid = message['chat']['id']
+chat_id = message['chat']['id']
+uid = message['from']['id']
+mid = message['message_id']
+type = message['chat']['type']
+text = message.get('text')
+name = message['chat']['first_name']
+user = message['chat']['username']
+data = update.get('callback_query', {}).get('data')
+cid2 = update.get('callback_query', {}).get('message', {}).get('chat', {}).get('id')
+uid2 = update.get('callback_query', {}).get('from', {}).get('id')
+mid2 = update.get('callback_query', {}).get('message', {}).get('message_id')
+step = open(f'step/{cid}.step', 'r').read() if os.path.exists(f'step/{cid}.step') else None
+os.makedirs('step', exist_ok=True)
+
+result = cursor.execute(f"SELECT * FROM users WHERE user_id = '{cid}'").fetchone()
+lang = result[2] if result else None
+
+til = json.dumps({
+    'inline_keyboard': [
+        [{'text': "🇺🇿 O'zbekcha", 'callback_data': "lang_uz"}, {'text': "🇺🇲 English", 'callback_data': "lang_en"}],
+        [{'text': "🇷🇺 Русский", 'callback_data': "lang_ru"}],
+    ]
+})
+
+if ('instagram.com' in text or 'tiktok.com' in text or 'youtu.be' in text or 'youtube.com/shorts' in text):
+    if type == 'private':
+        info = lang.replace('uz', f'@$bot orqali yuklab olindi!')
+        info = info.replace('ru', f'@$bot скачал через!')
+        info = info.replace('en', f'@$bot downloaded via!')
+    elif type == 'group' or type == 'supergroup':
+        info = 'Скачано с @$bot'
+
+if type == 'private':
+    result = cursor.execute(f"SELECT * FROM users WHERE user_id = '{cid}'").fetchone()
+    if not result:
+        cursor.execute(f"INSERT INTO users(user_id, lang) VALUES ('{cid}','NULL')")
+        conn.commit()
+
+if type == 'group' or type == 'supergroup':
+    result = cursor.execute(f"SELECT * FROM groups WHERE chat_id = '{cid}'").fetchone()
+    if not result:
+        cursor.execute(f"INSERT INTO groups(chat_id) VALUES ('{cid}')")
+        conn.commit()
+
+panel = json.dumps({
+    'resize_keyboard': True,
+    'keyboard': [
+        [{'text': "📊Statistika"}, {'text': "📃Xabar Yuborish"}],
+        [{'text': "/start"}]
+    ]
+})
+
+if text == '/start' or text == f'/start@{bot}' and type == 'private':
+    if not lang:
+        bot('sendmessage', {
+            'chat_id': cid,
+            'text': "<b>Please, select a new language!</b>",
+            'parse_mode': "html",
+            'reply_markup': til,
+        })
+        exit()
+    elif lang == 'uz':
+        bot('sendmessage', {
+            'chat_id': cid,
+            'text': "<b>Assalomu alaykum</b>, ushbu bot orqali <b>Instagram, TikTok, YouTube</b>dan videolarni yuklab olishingiz mumkin.\n\n<i>Yuklash kerak bo'lgan video havolasini yuboring:</i>",
+            'parse_mode': "html",
+            'reply_markup': json.dumps({
+                'inline_keyboard': [
+                    [{'text': "➕ Guruxga qo'shish", 'url': f"https://telegram.me/{bot}?startgroup=true"}],
+                ]
+            }),
+        })
+        exit()
+    elif lang == 'ru':
+        bot('sendmessage', {
+            'chat_id': cid,
+            'text': "<b>Привет</b>, с помощью этого бота вы можете скачивать видео из <b>Instagram, TikTok, YouTube.</b>\n\n<i>Отправьте ссылку на видео, которое хотите скачать:</i>",
+            'parse_mode': "html",
+            'disable_web_page_preview': True,
+            'reply_markup': json.dumps({
+                'inline_keyboard': [
+                    [{'text': "➕ Добавить в группу", 'url': f"https://telegram.me/{bot}?startgroup=true"}],
+                ]
+            }),
+        })
+        exit()
+    elif lang == 'en':
+        bot('sendmessage', {
+            'chat_id': cid,
+            'text': "<b>Hello</b>, with this bot you can download videos from <b>Instagram, TikTok, YouTube.</b>\n\n<i>Submit the link to the video you want to download:</i>",
+            'parse_mode': "html",
+            'disable_web_page_preview': True,
+            'reply_markup': json.dumps({
+                'inline_keyboard': [
+                    [{'text': "➕ Add to groups", 'url': f"https://telegram.me/{bot}?startgroup=true"}],
+                ]
+            }),
+        })
+        exit()
+
+if text == '/lang' and type == 'private':
+    bot('sendmessage', {
+        'chat_id': cid,
+        'text': "<b>Please, select a new language!</b>",
+        'parse_mode': "html",
+        'reply_markup': til,
+    })
+    exit()
+
+if 'lang' in data:
+    lang = data.split('_')[1]
+    cursor.execute(f"UPDATE users SET lang='{lang}' WHERE user_id='{uid2}'")
+    conn.commit()
+    bot('deleteMessage', {
+        'chat_id': cid2,
+        'message_id': mid2,
+    })
+    if lang == 'uz':
+        bot('sendmessage', {
+            'chat_id': cid2,
+            'text': "<b>Assalomu alaykum</b>, ushbu bot orqali <b>Instagram, TikTok, YouTube</b>dan videolarni yuklab olishingiz mumkin.\n\n<i>Yuklash kerak bo'lgan video havolasini yuboring:</i>",
+            'parse_mode': "html",
+            'reply_markup': json.dumps({
+                'inline_keyboard': [
+                    [{'text': "➕ Guruxga qo'shish", 'url': f"https://telegram.me/{bot}?startgroup=true"}],
+                ]
+            }),
+        })
+        exit()
+if lang == "ru":
+    bot('sendmessage',{
+        'chat_id':cid2,
+        'text':"<b>Привет</b>, с помощью этого бота вы можете скачивать видео из <b>Instagram, TikTok, YouTube.</b>\n\n<i>Отправьте ссылку на видео, которое хотите скачать:</i>",
+        'parse_mode':"html",
+        'disable_web_page_preview':True,
+        'reply_markup':json.dumps({
+            'inline_keyboard':[
+                [['text':"➕ Добавить в группу",'url':f"https://telegram.me/{bot}?startgroup=true"]],
+            ]
+        }),
+    })
+    exit()
+elif lang == "en":
+    bot('sendmessage',{
+        'chat_id':cid2,
+        'text':"<b>Hello</b>, with this bot you can download videos from <b>Instagram, TikTok, YouTube.</b>\n\n<i>Submit the link to the video you want to download:</i>",
+        'parse_mode':"html",
+        'disable_web_page_preview':True,
+        'reply_markup':json.dumps({
+            'inline_keyboard':[
+                [['text':"➕ Add to groups",'url':f"https://telegram.me/{bot}?startgroup=true"]],
+            ]
+        }),
+    })
+    exit()
+
+if "instagram.com" in text:
+    wait = bot('sendMessage',{
+        'chat_id':cid,
+        'text':"⏳",
+    }).result.message_id
+    json = json.loads(requests.get(f"https://api?url={text}").text)
+    title = json['meta']['title']
+    if "stories" in text:
+        type = json['url'][1]['type']
+        if type == "mp4":
+            url = json['url'][1]['url']
+            type = json['url'][1]['type']
+        else:
+            url = json['url'][0]['url']
+            type = json['url'][0]['type']
+    else:
+        url = json['url'][0]['url']
+        type = json['url'][0]['type']
+    if type == "mp4":
+        bot('sendVideo',{
+            'video':url,
+            'chat_id':cid,
+            'caption':f"{title}\n\n<b>{info}</b>",
+            'parse_mode':"html",
+            'disable_web_page_preview':True,
+        })
+    else:
+        bot('sendPhoto',{
+            'photo':url,
+            'chat_id':cid,
+            'caption':f"{title}\n\n<b>{info}</b>",
+            'parse_mode':"html",
+            'disable_web_page_preview':True,
+        })
+    bot('deleteMessage',{
+        'chat_id':cid,
+        'message_id':wait,
+    })
+
+if "tiktok.com" in text:
+    wait = bot('sendMessage',{
+        'chat_id':cid,
+        'text':"⏳",
+    }).result.message_id
+    json = json.loads(requests.get(f"https://api?url={text}").text)
+    title = json['meta']['title']
+    url = json['url'][0]['url']
+    audio = json['url'][1]['url']
+    bot('sendVideo',{
+        'chat_id':cid,
+        'video':url,
+        'caption':f"{title}\n\n<b>{info}</b>",
+        'parse_mode':"html",
+        'disable_web_page_preview':True,
+    })
+    bot('sendAudio',{
+        'chat_id':cid,
+        'audio':audio,
+        'caption':f"{title}\n\n<b>{info}</b>",
+        'parse_mode':"html",
+        'reply_to_message_id':mid,
+    })
+    bot('deleteMessage',{
+        'chat_id':cid,
+        'message_id':wait,
+    })
+
+if "youtu.be" in text or "youtube.com" in text:
+    wait = bot('sendMessage',{
+        'chat_id':cid,
+        'text':"⏳",
+        'parse_mode':"html",
+        'disable_web_page_preview':True,
+    }).result.message_id
+    json = json.loads(requests.get(f"https://api?url={text}").text)
+    title = json['meta']['title']
+    url = json['url'][0]['url']
+    bot('sendvideo',{
+        'chat_id':cid,
+        'video':url,
+        'caption':f"{title}\n\n<b>{info}</b>",
+        'parse_mode':"html",
+        'disable_web_page_preview':True,
+    })
+    bot('deleteMessage',{
+        'chat_id':cid,
+        'message_id':wait,
+    })
+
+if text =="📊Statistika" or text == "/stat":
+    use = mysqli_query(db, "SELECT * FROM users")
+    usids = mysqli_num_rows(use)
+    gr = mysqli_query(db, "SELECT * FROM groups")
+    grup = mysqli_num_rows(gr)
+    alll=usids+grup
+    bot('sendMessage',{
+        'chat_id':cid,
+        'text':f"<b>📈 Bot Statistikasi:\n👤 Userlar: {usids}\n👥Guruxlar: {grup}\n♻️Umumiy: {alll}</b>",
+        'parse_mode':"html",
+    })
+
+if text=="📃Xabar Yuborish":
+    if cid in admin:
+        bot('sendMessage',{
+            'chat_id':cid,
+            'text':"❕ Kimlarga Xabar yubormoqchisiz?",
+            'parse_mode':'html',
+            'reply_to_message_id':mid,
+            'reply_markup':json.dumps({
+                'inline_keyboard':[
+                    [["text":"👤 Userlarga","callback_data":"users"]],
+                    [["text":"👥 Guruxlarga","callback_data":"groupss"]],
+                ]
+            }),
+        }) 
+        exit()
+
+if data=="users":
+    bot('deleteMessage',{
+        'chat_id':cid2,
+        'message_id':mid2,
+    })
+    bot('sendMessage',{
+        'chat_id':cid2,
+        'text':"❗Userlarga <b>Qanday Xabar</b> Yubormoqchisiz.",
+        'parse_mode':'html',
+        'disable_web_page_preview':True,
+        'reply_markup':json.dumps({
+            'inline_keyboard':[
+                [["text":"Oddiy Xabar","callback_data":"xabar_senduser_Xabar"]],
+                [["text":"Forward","callback_data":"xabar_sendfuser_Forward"]],
+                [["text":"Post","callback_data":"xabar_sendpostuser_Post"]],
+            ]
+        }),
+    }) 
+    exit()
+if data == "groupss":
+    bot('deleteMessage', {
+        'chat_id': cid2,
+        'message_id': mid2
+    })
+    bot('sendMessage', {
+        'chat_id': cid2,
+        'text': "❗Guruxlarga <b>Qanday Xabar</b> Yubormoqchisiz.",
+        'parse_mode': 'html',
+        'disable_web_page_preview': True,
+        'reply_markup': json.dumps({
+            'inline_keyboard': [
+                [["text", "Oddiy Xabar", "callback_data", "gruppa_sendgr_Xabar"]],
+                [["text", "Forward", "callback_data", "gruppa_sendfgr_Forward"]],
+                [["text", "Post", "callback_data", "gruppa_sendpostgr_Post"]],
+            ]
+        })
+    })
+    exit()
+
+if "xabar_" in data:
+    tip = data.split("_")[1]
+    titl = data.split("_")[2]
+    bot('deleteMessage', {
+        'chat_id': cid2,
+        'message_id': mid2
+    })
+    bot('sendMessage', {
+        'chat_id': cid2,
+        'text': "❗Userlar uchun <b>{}</b>ni Yuboring.".format(titl),
+        'parse_mode': 'html',
+        'disable_web_page_preview': True,
+        'reply_markup': json.dumps({
+            'resize_keyboard': True,
+            'keyboard': [
+                [['text', "🔙Ortga"], ],
+            ]
+        })
+    })
+    with open("step/{}.step".format(uid2), "w") as f:
+        f.write(tip)
+
+if "gruppa_" in data:
+    tip = data.split("_")[1]
+    titl = data.split("_")[2]
+    bot('deleteMessage', {
+        'chat_id': cid2,
+        'message_id': mid2
+    })
+    bot('sendMessage', {
+        'chat_id': cid2,
+        'text': "❗Guruxlar uchun <b>{}</b>ni Yuboring.".format(titl),
+        'parse_mode': 'html',
+        'disable_web_page_preview': True,
+        'reply_markup': json.dumps({
+            'resize_keyboard': True,
+            'keyboard': [
+                [['text', "🔙Ortga"], ],
+            ]
+        })
+    })
+    with open("step/{}.step".format(uid2), "w") as f:
+        f.write(tip)
+
+if step == "sendpostgr" and text != "/start" and text != "📊Statistika" and text != "/panel" and text != "🔙Ortga" and text != "📃Xabar Yuborish":
+    if cid in admin:
+        sql = "SELECT chat_id FROM groups"
+        que = db.query(sql)
+        num = que.num_rows
+        for i in range(num):
+            res = que.fetch_assoc()
+            id = res['chat_id']
+            send2 = bot('copyMessage', {
+                'from_chat_id': cid,
+                'chat_id': id,
+                'message_id': mid,
+                'reply_markup': json.dumps(message['reply_markup']),
+            })
+            os.unlink("adminn.txt")
+        if send2:
+            bot('sendMessage', {
+                'chat_id': cid,
+                'text': "<b>Barcha Guruxlarga POST Yuborildi ✅</b>",
+                'parse_mode': 'html',
+                'reply_to_message_id': mid,
+                'reply_markup': panel
+            })
+            os.unlink("step/{}.step".format(cid))
+            exit()
+
+if step == "sendgr" and text != "/start" and text != "📊Statistika" and text != "/panel" and text != "🔙Ortga" and text != "📃Xabar Yuborish":
+    if cid in admin:
+        sql = "SELECT chat_id FROM groups"
+        que = db.query(sql)
+        num = que.num_rows
+        for i in range(num):
+            res = que.fetch_assoc()
+            id = res['chat_id']
+            send1 = bot('copyMessage', {
+                'from_chat_id': cid,
+                'chat_id': id,
+                'message_id': mid,
+            })
+            os.unlink("adminn.txt")
+        if send1:
+            bot('sendMessage', {
+                'chat_id': cid,
+                'text': "<b>Barcha Guruxlarga Xabar Yuborildi✅</b>",
+                'parse_mode': 'html',
+                'reply_to_message_id': mid,
+                'reply_markup': panel
+            })
+            os.unlink("step/{}.step".format(cid))
+
+if step == "sendfgr" and text != "/start" and text != "📊Statistika" and text != "/panel" and text != "🔙Ortga" and text != "📃Xabar Yuborish":
+    sql = "SELECT chat_id FROM groups"
+    que = db.query(sql)
+    num = que.num_rows
+    for i in range(num):
+        res = que.fetch_assoc()
+        id = res['chat_id']
+        send1 = bot('forwardMessage', {
+            'from_chat_id': cid,
+            'chat_id': id,
+            'message_id': mid,
+        })
+        os.unlink("adminn.txt")
+    if send1:
+        bot('sendMessage', {
+            'chat_id': cid,
+            'text': "<b>Barcha Guruxlarga Forward Yuborildi✅</b>",
+            'parse_mode': 'html',
+            'reply_to_message_id': mid,
+            'reply_markup': panel
+        })
+        os.unlink("step/{}.step".format(cid))
+
+if step == "sendpostuser" and text != "/start" and text != "📊Statistika" and text != "/panel" and text != "🔙Ortga" and text != "📃Xabar Yuborish":
+    if cid in admin:
+        sql = "SELECT user_id FROM users"
+        que = db.query(sql)
+        num = que.num_rows
+        for i in range(num):
+            res = que.fetch_assoc()
+            id = res['user_id']
+            send2 = bot('copyMessage', {
+                'from_chat_id': cid,
+                'chat_id': id,
+                'message_id': mid,
+                'reply_markup': json.dumps(message['reply_markup']),
+            })
+            os.unlink("adminn.txt")
+        if send2:
+            bot('sendMessage', {
+                'chat_id': cid,
+                'text': "<b>Barcha Azolarga POST Yuborildi✅</b>",
+                'parse_mode': 'html',
+                'reply_to_message_id': mid,
+                'reply_markup': panel
+            })
+            os.unlink("step/{}.step".format(cid))
+            exit()
+
+if step == "senduser" and text != "/start" and text != "📊Statistika" and text != "/panel" and text != "🔙Ortga" and text != "📃Xabar Yuborish":
+    if cid in admin:
+        sql = "SELECT user_id FROM users"
+        que = db.query(sql)
+        num = que.num_rows
+        for i in range(num):
+            res = que.fetch_assoc()
+            id = res['user_id']
+            send1 = bot('copyMessage', {
+                'from_chat_id': cid,
+                'chat_id': id,
+                'message_id': mid,
+            })
+            os.unlink("adminn.txt")
+        if send1:
+            bot('sendMessage', {
+                'chat_id': cid,
+                'text': "<b>Barcha Azolarga Xabar Yuborildi✅</b>",
+                'parse_mode': 'html',
+                'reply_to_message_id': mid,
+                'reply_markup': panel
+            })
+            os.unlink("step/{}.step".format(cid))
+
+if step == "sendfuser" and text != "/start" and text != "📊Statistika" and text != "/panel" and text != "🔙Ortga" and text != "📃Xabar Yuborish":
+    if cid in admin:
+        sql = "SELECT user_id FROM users"
+        que = db.query(sql)
+        num = que.num_rows
+        for i in range(num):
+            res = que.fetch_assoc()
+            id = res['user_id']
+            send1 = bot('forwardMessage', {
+                'from_chat_id': cid,
+                'chat_id': id,
+                'message_id': mid,
+            })
+            os.unlink("adminn.txt")
+        if send1:
+            bot('sendMessage', {
+                'chat_id': cid,
+                'text': "<b>Barcha Azolarga Forward Yuborildi✅</b>",
+                'parse_mode': 'html',
+                'reply_to_message_id': mid,
+                'reply_markup': panel
+            })
+            os.unlink("step/{}.step".format(cid))
+
+if text == "🔙Ortga" or text == "/panel":
+    if cid in admin:
+        bot('sendMessage', {
+            'chat_id': cid,
+            'text': "❕Admin Panel",
+            'parse_mode': 'html',
+            'reply_to_message_id': mid,
+            'reply_markup': panel
+        })
+        os.unlink("step/{}.step".format(cid))
